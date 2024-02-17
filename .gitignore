@@ -1,0 +1,18 @@
+node_modules/
+
+# Flutter
+build/
+
+# Electron
+roastwave_electron/dist/
+roastwave_electron/out/
+
+# macOS
+.DS_Store
+.env
+.idea/
+*.code-workspace
+
+.vscode/
+.log
+.tmp
