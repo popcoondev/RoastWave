@@ -17,6 +17,11 @@ function openSerialPort() {
   return new SerialPort({path:portPath, baudRate: 115200});
 }
 
+// シリアルポートを閉じる関数
+function closeSerialPort(port) {
+  port.close();
+}
+
 // シリアルポートを開いて、データを受信できるparserを返却する関数
 // この関数はmain.jsから呼び出される
 function getSerialPortParser(port) {
@@ -26,7 +31,8 @@ function getSerialPortParser(port) {
 module.exports = {
   getSerialPortList: getSerialPortList,
   openSerialPort: openSerialPort,
-  getSerialPortParser: getSerialPortParser
+  getSerialPortParser: getSerialPortParser,
+  closeSerialPort: closeSerialPort
 }
 
 // // シリアルポートを開く
