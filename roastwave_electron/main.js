@@ -3,7 +3,8 @@ const SerialCommunication = require('./serial_communication')
 const { ReadlineParser } = require('@serialport/parser-readline')
 
 // コマンドライン引数からシリアルポートのパスを取得
-const portPath = process.argv[2];
+//const portPath = process.argv[2];
+const portPath = '/dev/tty.usbmodem1101';
 console.log('portPath:', portPath);
 
 // Webサーバーを起動
@@ -38,7 +39,7 @@ wss.on('connection', function connection(ws) {
       SerialCommunication.getSerialPortList().then(
         ports => {
           console.log('ports:', ports);
-          ws.send(JSON.stringify({type: 'serial_port_list', data: ports}));
+          ws.send(formatWebSocketMessage('serial_port_list', ports));
         },
         err => {
           console.error('Error listing ports', err);
@@ -52,12 +53,12 @@ wss.on('connection', function connection(ws) {
       console.log('event: open_serial_port');
       activePort = SerialCommunication.openSerialPort();
       const parser = SerialCommunication.getSerialPortParser(activePort);
-      ws.send(JSON.stringify({type: 'serial_port_opened'}));
+      ws.send(formatWebSocketMessage('serial_port_opened'));
       parser.on('data', (data) => {
         console.log('Received:', data.toString());
         // シリアルポートからのデータをWebSocketを通じてクライアントに送信
         // 送信する際のフォーマットはJSON形式
-        ws.send(JSON.stringify({type: 'serial_data', data: data.toString()}));
+        ws.send(formatWebSocketMessage('serial_port_data', data.toString()));
       });
       activePort.on('error', function(err) {
         console.log('Error: ', err.message)
@@ -69,13 +70,13 @@ wss.on('connection', function connection(ws) {
     if (message == 'close_serial_port') {
       console.log('event: close_serial_port');
       SerialCommunication.closeSerialPort(activePort);
-      ws.send(JSON.stringify({type: 'serial_port_closed'}));
+      ws.send(formatWebSocketMessage('serial_port_closed'));
     }
   });
 
   // シリアルポートからのデータをWebSocketを通じてクライアントに送信
   // ここでは例として「Hello Client」メッセージを送信しています
-  ws.send('Hello Client');
+  ws.send(formatWebSocketMessage('test_message', 'Hello Client'));
   // let count = 0;
   // setInterval(() => {
   //   ws.send(count++);
@@ -104,6 +105,10 @@ wss.on('connection', function connection(ws) {
 //   }
 // );
 
+// websocketに送信する際のフォーマットに変換する関数
+function formatWebSocketMessage(type, data) {
+  return JSON.stringify({type: type, data: data});
+}
 
 
 function createWindow () {
@@ -111,7 +116,9 @@ function createWindow () {
     width: 800,
     height: 600,
     webPreferences: {
-      nodeIntegration: true
+      nodeIntegration: true,
+      contextIsolation: true,  // コンテキスト分離を有効にする
+      preload: path.join(__dirname, 'preload.js')  // preloadスクリプトを指定する
     }
   })
 

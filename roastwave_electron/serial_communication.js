@@ -5,8 +5,8 @@ const { SerialPort } = require('serialport')
 const { ReadlineParser } = require('@serialport/parser-readline')
 
 // シリアルポートのパスをコマンドライン引数から取得
-const portPath = process.argv[2];
-
+// const portPath = process.argv[2];
+const portPath = '/dev/tty.usbmodem1101';
 // シリアルポートのリストを取得してmain.jsに返却する関数
 function getSerialPortList() {
   return SerialPort.list();
