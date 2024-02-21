@@ -4,21 +4,21 @@ const { ReadlineParser } = require('@serialport/parser-readline')
 
 // コマンドライン引数からシリアルポートのパスを取得
 //const portPath = process.argv[2];
-const portPath = '/dev/tty.usbmodem1101';
-console.log('portPath:', portPath);
+// const portPath = '/dev/tty.usbmodem1101';
+// console.log('portPath:', portPath);
 
 // Webサーバーを起動
 const express = require('express');
 const path = require('path');
-const localServer = express();
-const PORT = 3000;
+// const localServer = express();
+const PORT = 3001;
 
 // FlutterビルドのWebアプリケーションをホスティング
-localServer.use(express.static(path.join(__dirname, '../roastwave_flutter/build/web')));
+// localServer.use(express.static(path.join(__dirname, '../roastwave_flutter/build/web')));
 
-localServer.listen(PORT, '127.0.0.1', () => {
-  console.log(`App is running on http://localhost:${PORT}`);
-});
+// localServer.listen(PORT, '127.0.0.1', () => {
+//   console.log(`App is running on http://localhost:${PORT}`);
+// });
 
 // WebSocketサーバーを起動
 const WebSocket = require('ws');
@@ -31,10 +31,12 @@ wss.on('connection', function connection(ws) {
   // クライアントからのメッセージ受信時に実行されるイベント
   ws.on('message', function incoming(message) {
     console.log('received: %s', message);
-
+    const parsedMessage = parseWebSocketMessage(message);
+    console.log('parsedMessage:', parsedMessage);
     // クライアントからのメッセージが「get_serial_port」の場合
     // シリアルポートのリストを取得してクライアントに送信
-    if (message == 'get_serial_port') {
+    
+    if (parsedMessage.type === 'get_serial_port') {
       console.log('event: get_serial_port');
       SerialCommunication.getSerialPortList().then(
         ports => {
@@ -49,9 +51,10 @@ wss.on('connection', function connection(ws) {
 
     // クライアントからのメッセージが「open_serial_port」の場合
     // シリアルポートを開く
-    if (message == 'open_serial_port') {
-      console.log('event: open_serial_port');
-      activePort = SerialCommunication.openSerialPort();
+    if (parsedMessage.type === 'open_serial_port') {
+      console.log('event: open_serial_port port:', parsedMessage.port);
+      
+      activePort = SerialCommunication.openSerialPort(parsedMessage.port);
       const parser = SerialCommunication.getSerialPortParser(activePort);
       ws.send(formatWebSocketMessage('serial_port_opened'));
       parser.on('data', (data) => {
@@ -67,7 +70,7 @@ wss.on('connection', function connection(ws) {
 
     // クライアントからのメッセージが「close_serial_port」の場合
     // シリアルポートを閉じる
-    if (message == 'close_serial_port') {
+    if (parsedMessage.type === 'close_serial_port') {
       console.log('event: close_serial_port');
       SerialCommunication.closeSerialPort(activePort);
       ws.send(formatWebSocketMessage('serial_port_closed'));
@@ -108,6 +111,11 @@ wss.on('connection', function connection(ws) {
 // websocketに送信する際のフォーマットに変換する関数
 function formatWebSocketMessage(type, data) {
   return JSON.stringify({type: type, data: data});
+}
+
+// websocketで受信したメッセージをJSON形式に変換する関数
+function parseWebSocketMessage(message) {
+  return JSON.parse(message);
 }
 
 
