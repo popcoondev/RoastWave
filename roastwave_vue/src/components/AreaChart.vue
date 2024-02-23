@@ -30,16 +30,36 @@
                 responsive: true,
                 //maintainAspectRatio: false,
                 scales: {
-                    y: {
-                        min: 0, // Y軸の最小値
-                        max: 230, // Y軸の最大値を230度に設定
-                        title: {
-                        display: true,
-                        text: 'Temperature (°C)'
-                        }
-                    },
+                    y: [{
+                            id: 'y1',
+                            min: 0, // Y軸の最小値
+                            max: 230, // Y軸の最大値を230度に設定
+                            title: {
+                            display: true,
+                            text: 'Temperature (°C)'
+                            },
+                            position: 'left',
+                            beginAtZero: true,
+                        },
+                        {
+                            id: 'y2',
+                            min: -20,
+                            max: 20, 
+                            title: {
+                            display: true,
+                            text: 'Delta (°C)'
+                            },
+                            ticks: {
+                                stepSize: 5
+                            },
+                            position: 'right',
+                            beginAtZero: true,
+                        }],
                     x: {
-                        max: 900, // X軸の設定はChart.jsのバージョンや種類によって異なる場合があります
+                        id: 'x1',
+                        // type: 'time', // X軸のタイプをtimeに設定
+                        // max: //開始時刻から30分後の時刻を設定
+                        // new Date(new Date().getTime() + 30 * 60 * 1000),
                         title: {
                         display: true,
                         text: 'Time (secounds)'
@@ -48,7 +68,7 @@
                 },
                 plugins: {
                     legend: {
-                        display: false, // 凡例を表示
+                        display: true, // 凡例を表示
                         position: 'top',
                     },
                     title: {

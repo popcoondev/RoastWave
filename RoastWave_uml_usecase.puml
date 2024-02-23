@@ -1,0 +1,67 @@
+@startuml
+actor User
+package RoastWave {
+  package VueFrontend {
+    usecase LoadVueFrontend
+    usecase StartRoast
+    usecase StopRoast
+    usecase ViewTemperature
+    usecase ViewGraph
+    usecase ConnectWebsocket
+    usecase DisconnectWebsocket
+    usecase GetSerialPort
+    usecase RequestSerialPort
+    usecase RequestSerialData
+    usecase BufferringSerialData
+
+
+    LoadVueFrontend -> ConnectWebsocket
+    ConnectWebsocket -> RequestSerialPort
+    RequestSerialPort -> GetSerialPortFromOS
+    GetSerialPortFromOS -> RequestSerialData
+    ReceiveSerialData -> ManagingRoast
+   
+    User -> ViewGraph
+    UpdateGraph -> ViewGraph
+    ManagingRoast -> UpdateGraph
+
+    User -> ViewTemperature
+    UpdateTemperature -> ViewTemperature
+    ManagingRoast -> UpdateTemperature
+
+    User -> StartRoast
+    StartRoast -> WatchTemperature
+    WatchTemperature -> ManagingRoast
+    
+    User -> StopRoast
+    StopRoast -> StopWatchTemperature
+    StopWatchTemperature -> ManagingRoast
+
+  }
+
+  package Electron {
+    usecase AppStart
+    usecase InitElectron
+    usecase StartLocalServer
+    usecase StopLocalServer
+    usecase StartWebsocketByElectron
+    usecase StopWebsocketByElectron
+    usecase GetSerialDataFromOS
+    usecase GetSerialPortFromOS
+
+    User -> AppStart
+    AppStart -> InitElectron
+    InitElectron -> StartLocalServer
+    StartLocalServer -> LoadVueFrontend
+    InitElectron -> StartWebsocketByElectron
+    StartWebsocketByElectron -> ConnectWebsocket
+
+    RequestSerialData -> GetSerialDataFromOS
+    GetSerialDataFromOS -> ReceiveSerialData
+
+  }
+
+}
+
+actor OS
+@enduml

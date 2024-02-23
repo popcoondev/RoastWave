@@ -24,10 +24,13 @@ const PORT = 3001;
 const WebSocket = require('ws');
 const wss = new WebSocket.Server({ port: 8080 });
 let activePort; // シリアルポートを保持する変数
+const powerSaveBlocker = require('electron').powerSaveBlocker;
+let powerSaveBlockerId;
 
 wss.on('connection', function connection(ws) {
   console.log('A client connected');
-  
+  sendSerialPortListToClient(ws);
+
   // クライアントからのメッセージ受信時に実行されるイベント
   ws.on('message', function incoming(message) {
     console.log('received: %s', message);
@@ -38,15 +41,7 @@ wss.on('connection', function connection(ws) {
     
     if (parsedMessage.type === 'get_serial_port') {
       console.log('event: get_serial_port');
-      SerialCommunication.getSerialPortList().then(
-        ports => {
-          console.log('ports:', ports);
-          ws.send(formatWebSocketMessage('serial_port_list', ports));
-        },
-        err => {
-          console.error('Error listing ports', err);
-        }
-      );
+      sendSerialPortListToClient(ws);
     }
 
     // クライアントからのメッセージが「open_serial_port」の場合
@@ -64,7 +59,7 @@ wss.on('connection', function connection(ws) {
         ws.send(formatWebSocketMessage('serial_port_data', data.toString()));
       });
       activePort.on('error', function(err) {
-        console.log('Error: ', err.message)
+        console.log('Error: ', err.message);
       });
     }
 
@@ -75,7 +70,36 @@ wss.on('connection', function connection(ws) {
       SerialCommunication.closeSerialPort(activePort);
       ws.send(formatWebSocketMessage('serial_port_closed'));
     }
+
+    if(parsedMessage.type === 'start_roast') {
+      console.log('event: start_roast');
+      if(powerSaveBlockerId === undefined) {
+        powerSaveBlockerId = powerSaveBlocker.start('prevent-display-sleep');
+        console.log('powerSaveBlockerId:', powerSaveBlockerId);
+      }
+    }
+
+    if(parsedMessage.type === 'stop_roast') {
+      console.log('event: stop_roast');
+      if(powerSaveBlockerId !== undefined) {
+        powerSaveBlocker.stop(powerSaveBlockerId);
+        powerSaveBlockerId = undefined;
+      }
+    }
   });
+
+  ws.on('close', function close() {
+    console.log('A client disconnected');
+    // クライアントが切断された場合、シリアルポートを閉じる
+    SerialCommunication.closeSerialPort(activePort);
+
+    if(powerSaveBlocker !== undefined) {
+      powerSaveBlocker.stop(powerSaveBlockerId);
+      powerSaveBlocker = undefined;
+    }
+    
+  });
+
 
   // シリアルポートからのデータをWebSocketを通じてクライアントに送信
   // ここでは例として「Hello Client」メッセージを送信しています
@@ -85,6 +109,18 @@ wss.on('connection', function connection(ws) {
   //   ws.send(count++);
   // }, 1000);
 });
+
+function sendSerialPortListToClient(ws) {
+  SerialCommunication.getSerialPortList().then(
+    ports => {
+      console.log('ports:', ports);
+      ws.send(formatWebSocketMessage('serial_port_list', ports));
+    },
+    err => {
+      console.error('Error listing ports', err);
+    }
+  );
+}
 
 //SerialCommunicationを一通り動作確認する
 // SerialCommunication.getSerialPortList().then(
@@ -140,3 +176,34 @@ function createWindow () {
 }
 
 app.whenReady().then(createWindow)
+
+// main.jsとserial_communication.jsの実装からWebsocketManager.jsで実装するためのメッセージ仕様を抽出
+// このメッセージ仕様を元に、WebSocketManager.jsを実装する
+// このメッセージ仕様は、WebSocketを通じて送受信するメッセージのフォーマットを定義する
+// このメッセージ仕様は、JSON形式で送受信される
+// このメッセージ仕様は、typeとdataの2つのフィールドを持つ
+// typeフィールドはメッセージの種類を表し、dataフィールドはメッセージの内容を表す
+// このメッセージ仕様は、typeフィールドの値によって、dataフィールドの内容が変わる
+// このメッセージ仕様は、typeフィールドの値によって、メッセージの処理が変わる
+// このメッセージ仕様は、typeフィールドの値によって、クライアントとサーバーの通信が行われる
+// typeの種別は以下の通り
+// get_serial_port: シリアルポートのリストを取得する
+// serial_port_list: シリアルポートのリストをクライアントに送信する
+// open_serial_port: シリアルポートを開く
+// serial_port_opened: シリアルポートが開かれたことをクライアントに通知する
+// close_serial_port: シリアルポートを閉じる
+// serial_port_closed: シリアルポートが閉じられたことをクライアントに通知する
+// serial_port_data: シリアルポートからのデータをクライアントに送信する
+// test_message: テストメッセージをクライアントに送信する
+// このメッセージ仕様は、get_serial_portの場合、dataフィールドには何も含まれない
+// このメッセージ仕様は、serial_port_listの場合、dataフィールドにはシリアルポートのリストが含まれる
+// dataフィールドの内容は、シリアルポートのリストを表す
+// シリアルポートのリストは、シリアルポートのパスを含む
+// このメッセージ仕様は、open_serial_portの場合、dataフィールドにはシリアルポートのパスが含まれる
+// このメッセージ仕様は、serial_port_openedの場合、dataフィールドには何も含まれない
+// このメッセージ仕様は、close_serial_portの場合、dataフィールドには何も含まれない
+// このメッセージ仕様は、serial_port_closedの場合、dataフィールドには何も含まれない
+// このメッセージ仕様は、serial_port_dataの場合、dataフィールドにはシリアルポートからのデータが含まれる
+// dataフィールドの内容は、シリアルポートからの温度データを表す
+// このメッセージ仕様は、test_messageの場合、dataフィールドにはテストメッセージが含まれる
+// このメッセージ仕様は、WebSocketManager.jsで利用される
