@@ -91,11 +91,11 @@ wss.on('connection', function connection(ws) {
   ws.on('close', function close() {
     console.log('A client disconnected');
     // クライアントが切断された場合、シリアルポートを閉じる
-    SerialCommunication.closeSerialPort(activePort);
+    // SerialCommunication.closeSerialPort(activePort);
 
     if(powerSaveBlocker !== undefined) {
       powerSaveBlocker.stop(powerSaveBlockerId);
-      powerSaveBlocker = undefined;
+      powerSaveBlockerId = undefined;
     }
     
   });
