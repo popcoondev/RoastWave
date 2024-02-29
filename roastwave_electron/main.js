@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron')
+const { app, BrowserWindow, session } = require('electron')
 const SerialCommunication = require('./serial_communication')
 const { ReadlineParser } = require('@serialport/parser-readline')
 
@@ -30,6 +30,7 @@ let powerSaveBlockerId;
 wss.on('connection', function connection(ws) {
   console.log('A client connected');
   sendSerialPortListToClient(ws);
+  
 
   // クライアントからのメッセージ受信時に実行されるイベント
   ws.on('message', function incoming(message) {
@@ -57,6 +58,7 @@ wss.on('connection', function connection(ws) {
         // シリアルポートからのデータをWebSocketを通じてクライアントに送信
         // 送信する際のフォーマットはJSON形式
         ws.send(formatWebSocketMessage('serial_port_data', data.toString()));
+        // ws.send(sendDataToArtisan(data.toString(), 0));
       });
       activePort.on('error', function(err) {
         console.log('Error: ', err.message);
@@ -122,6 +124,7 @@ function sendSerialPortListToClient(ws) {
   );
 }
 
+
 //SerialCommunicationを一通り動作確認する
 // SerialCommunication.getSerialPortList().then(
 //   ports => {
@@ -156,6 +159,20 @@ function parseWebSocketMessage(message) {
 
 
 function createWindow () {
+  async () => {
+    const pathToVueDevTools = '/Users/mn/.nodebrew/current/bin/vue-devtools';
+    try {
+      // defaultSessionを使用して、Vue Devtools拡張機能をロード
+      await session.defaultSession.loadExtension(pathToVueDevTools, {
+        // 拡張機能を開発モードでロードする場合は、以下のオプションを有効にします
+        allowFileAccess: true
+      });
+      console.log('Vue Devtools has been loaded successfully!');
+    } catch (err) {
+      console.error('Failed to load Vue Devtools:', err);
+    }
+  }
+
   const win = new BrowserWindow({
     width: 800,
     height: 600,
@@ -164,18 +181,40 @@ function createWindow () {
       contextIsolation: true,  // コンテキスト分離を有効にする
       preload: path.join(__dirname, 'preload.js')  // preloadスクリプトを指定する
     }
-  })
+  });
 
   // win.loadFile('../roastwave_flutter/build/web/index.html') // ここにFlutterビルドのWebアプリケーションのパスを指定
   win.loadURL(`http://localhost:${PORT}`);
 
   // win.loadFile('/Users/mn/development/RoastWave/roastwave_flutter/build/web/index.html');
-  win.webContents.openDevTools()
+  win.webContents.openDevTools();
 
 
 }
 
-app.whenReady().then(createWindow)
+app.whenReady().then(createWindow);
+
+
+class TimestampIDGenerator {
+  constructor() {
+    this.baseTimestamp = new Date().getTime(); // 現在のタイムスタンプを基準値として設定
+    this.index = 0; // インデックスの初期値
+  }
+
+  getNextID() {
+    const id = this.baseTimestamp + this.index; // タイムスタンプにインデックスを加算
+    this.index += 1; // 次のIDのためにインデックスを増やす
+    return id;
+  }
+}
+
+const idGenerator = new TimestampIDGenerator();
+function sendDataToArtisan(btTempeture, etTemperature) {
+  //{ "id": nnnn, "data": { "BT": xx.x, "ET": yy.y } }
+  const id = idGenerator.getNextID();
+  const data = {BT: btTempeture, ET: etTemperature};
+  return JSON.stringify({id: id, data: data});
+}
 
 // main.jsとserial_communication.jsの実装からWebsocketManager.jsで実装するためのメッセージ仕様を抽出
 // このメッセージ仕様を元に、WebSocketManager.jsを実装する

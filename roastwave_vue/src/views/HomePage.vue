@@ -17,8 +17,9 @@
   </div>
   <div class="tools">
     <!-- <serialport-control :serialStateProp="serialState" :serialPortListProp="serialPortList" :selectedPortProp="selectedPort" :startSerialPortProp="startSerialPort" /> -->
-    <temperature-display :temperature="ringBuffer[ringBuffer.length - 1]?.value" />
+    <temperature-display :temperature="Number(ringBuffer[ringBuffer.length - 1]?.value)" />
     <roast-control :toggleRoastProp="toggleRoast" :roastStateProp="roastState" />    
+    <roast-time :roastElapsedMillisProp="formatElapseTimeToString(roastElapsedMillis)" />
   </div>
 
 
@@ -31,6 +32,7 @@
   import AreaChart from '@/components/AreaChart.vue';
   import TemperatureDisplay from '../components/TemperatureDisplay.vue';
   import RoastControl from '../components/RoastControl.vue';
+  import RoastTime from '../components/RoastTime.vue';
   // import SerialportControl from '../components/SerialportControl.vue';
   
   const ringBufferLength = 100;
@@ -42,6 +44,7 @@
       AreaChart,
       TemperatureDisplay,
       RoastControl,
+      RoastTime,
       // SerialportControl
     },
     data() {
@@ -51,12 +54,14 @@
         serialPortList: [],
         selectedPort: null,
         ringBuffer: [], // 温度データを常時保存するリングバッファ
-        rorIndexTime: null, // ROR計算の機転時間を保存
+        rorIndexMillis: null, // ROR計算の機転時間を保存
+        rorIndexTemperature: null, // ROR計算の機転温度を保存
+        roastElapsedMillis: null, // ロースト経過時間
         roastData: [], // ハゼのタイミングや温度などのデータを格納
         roastState: 'idle', // idle, roasting, cooling
         serialState: 'closed', // closed, opened
-        roastStartTime : null,
-        roastEndTime : null,
+        roastStartMillis : null,
+        roastEndMillis : null,
       };
     },
     created() {
@@ -83,7 +88,7 @@
             // },
             
             
-            this.addData(new Date().toLocaleTimeString(), data.data);
+            this.addData(new Date().getTime(), data.data);
            } else if(data.type === 'serial_port_opened') {
             // シリアルポートを開いた場合の処理
             console.log('Serial port opened:', data);
@@ -139,109 +144,78 @@
         }
 
         // ロースト中の場合は、ローストデータとして追加
-        if(this.roastState === 'roasting') {
-          this.addCharData(time, value);
-        }
+        // if(this.roastState === 'roasting') {
+        //   this.addChartData(time, value);
+        // }
 
       },
       initChartData() {
         return {
           labels: [],
           datasets: [
-            { // 温度データ
-              type: 'line',
+            {
+              label: 'Temperature',
               data: [],
-              backgroundColor: 'rgba(255, 99, 132, 0.2)', // 背景色（透明度を持たせる）
-              borderColor: 'rgba(255, 99, 132, 1)', // 線の色
-              pointBackgroundColor: '',
-              borderWidth: 4,
-              pointBorderColor: '#249EBF',
-              pointRadius: 0,
-              fill: 'origin',
-              elements: {
-                line: {
-                  tension: 0.4
-                }
-              },
-              y: 'y1',
-              
+              borderColor: 'rgba(255, 99, 132, 1)',
+              backgroundColor: 'rgba(255, 99, 132, 0.5)',
+              yAxisID: 'y1',
+              type: 'line'
             },
-            { // RORデータ
-              type: 'line',
+            {
+              label: 'ROR',
               data: [],
-              backgroundColor: 'rgba(132, 99, 255, 0.2)', // 背景色（透明度を持たせる）
-              borderColor: 'rgba(132, 99, 255, 1)', // 線の色
-              pointBackgroundColor: '',
-              borderWidth: 4,
-              pointBorderColor: '#249EBF',
-              pointRadius: 0,
-              fill: 'origin',
-              elements: {
-                line: {
-                  tension: 0.4
-                }
-              },
-              y: 'y2'
+              borderColor: 'rgba(54, 162, 235, 1)',
+              backgroundColor: 'rgba(54, 162, 235, 0.5)',
+              yAxisID: 'y2',
+              type: 'line'
             }
           ]
         };
       },
-      addCharData(time, value) {
-        // Y2軸のRORデータを追加の対応をしたい
-        // ROR計算
-        // let ror = 0;
-        // const currentTime = new Date().getTime();
-        // if(this.roastStartTime !== null && this.roastEndTime === null) {
-        //   if(currentTime - this.roastStartTime > 60000) {
-        //     // リングバッファから過去60秒間のデータからの平均RORを計算
-        //     const rorData = this.ringBuffer.filter(data => {
-        //       return currentTime - new Date(data.time).getTime() < 60000;
-        //     });
-        //     ror = rorData.length > 1 ? 
-        //       (rorData[rorData.length - 1].value - rorData[0].value) / (rorData.length - 1) : 0;
-
-        //   }          
-        // }
-
-        // TODO: X軸ラベルを00:00にしたい
-        // let newLabel = 0;
-        // // roastStartTimeからの経過時間を算出してラベルに追加
-        // if(this.chartData.labels.length > 0) {
-        //   const lastLabel = this.chartData.labels[this.chartData.labels.length - 1];
-        //   const lastTime = new Date(lastLabel).getTime();
-        //   const currentTime = new Date(time).getTime();
-        //   const diff = currentTime - lastTime;
-        //   const newTime = new Date(lastTime + diff);
-        //   newLabel = newTime.toLocaleTimeString();
-        // }
+      addChartData(time, value) {
 
         const newChartData = {
-          // ラベルは00:00:00のような形式で、初回を0秒として、以降は取得したtimeから算出
-
-
-          labels: [ ...this.chartData.labels, time],
+          labels: [ ...this.chartData.labels, time ],
           datasets: [
-            { // 温度データの追加
-              type: 'line',
+            {
+              label: 'Temperature',
               data: [
-                ...this.chartData.datasets[0].data,
-                value
+                ...this.chartData.datasets[0].data, value
               ],
-              yAxisID: 'y1'
+              borderColor: 'rgba(255, 99, 132, 1)',
+              backgroundColor: 'rgba(255, 99, 132, 0.5)',
+              yAxisID: 'y1',
+              type: 'line'
             },
-            // ror === 0 ? '' :
-            { // RORデータの追加
-              type: 'line',
+            {
+              label: 'ROR',
               data: [
-                ...this.chartData.datasets[1].data,
-                this.chartData.datasets[0].data.length > 1 ? 
-                  (this.chartData.datasets[0].data[this.chartData.datasets[0].data.length - 1] - 
-                  this.chartData.datasets[0].data[this.chartData.datasets[0].data.length - 2]) : 0
+                ...this.chartData.datasets[1].data, this.calcROR(value, 30)
               ],
-              yAxisID: 'y2'
+              borderColor: 'rgba(54, 162, 235, 1)',
+              backgroundColor: 'rgba(54, 162, 235, 0.5)',
+              yAxisID: 'y2',
+              type: 'line'
             }
-            
-          ] 
+          ]
+
+          // labels: [ ...this.chartData.labels, time ],
+          // datasets: [
+          //   {
+          //     // 温度データの追加
+          //     type: 'line',
+          //     data: [ ...this.chartData.datasets[0].data, value ],
+                
+          //     yAxisID: 'y1'
+          //   },
+          //   {
+          //     // RORデータの追加
+          //     type: 'line',
+          //     data: [ ...this.chartData.datasets[1].data, value ],
+          //     yAxisID: 'y2'
+
+          //   } 
+          // ]
         };
 
         this.chartData = newChartData;
@@ -264,9 +238,21 @@
         this.roastState = 'roasting';
         
         // ROR計算の機転時間を保存
-        this.roastEndTime = null;
-        this.roastStartTime = new Date().getTime();
+        this.roastEndMillis = null;
+        this.roastStartMillis = new Date().getTime();
         this.webSocket.send(JSON.stringify({ type: 'start_roast' }));
+        this.rorIndexMillis = this.roastStartMillis;
+        this.rorIndexTemperature = this.ringBuffer[this.ringBuffer.length - 1].value;
+        
+        this.roastLoop = setInterval(() => {
+          // ロースト中のデータを追加
+          this.roastElapsedMillis = new Date().getTime() - this.roastStartMillis
+          const currentTime = this.formatElapseTimeToString(this.roastElapsedMillis);
+          const lastData = this.ringBuffer[this.ringBuffer.length - 1];
+          if(lastData) {
+            this.addChartData(currentTime, lastData.value);
+          }
+        }, 1000);
 
 
       },
@@ -275,7 +261,9 @@
         // ロースト状態として、データ蓄積停止        
         this.webSocket.send(JSON.stringify({ type: 'stop_roast' }));
         this.roastState = 'idle';
-        this.roastEndTime = new Date().getTime();
+        this.roastEndMillis = new Date().getTime();
+        clearInterval(this.roastLoop);
+
       },
       toggleRoast() {
         // ローストのトグル処理
@@ -285,8 +273,31 @@
         } else {
           this.startRoast();
         }
+      },
+      formatElapseTimeToString(elapsedMillis) {
+        // 経過時間を文字列に変換
+        // 12:34の場合のミリ秒は 12 * 60 * 1000 + 34 * 1000 = 754000
+        const seconds = Math.floor(elapsedMillis / 1000); // 754000 -> 754 % 60 = 34
+        const minutes = Math.floor(seconds / 60); // 754 -> 12 -> 12 % 60 = 12
+        
+        // 00:00の形式に変換
+        return `${String(minutes).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+      },
+      calcROR(value, seconds) {
+        if(this.rorIndexMillis === null) {
+          this.rorIndexMillis = new Date().getTime();
+          return undefined;
+        }
+        if(this.rorIndexMillis - this.roastElapsedMillis > seconds * 1000) {
+          const ror = value - this.rorIndexTemperature;
+          this.rorIndexMillis = new Date().getTime();
+          this.rorIndexTemperature = value;
+          return ror;
+        }
+        else {
+          return undefined;
+        }
       }
-
     },
   };
 </script>
